@@ -1,0 +1,601 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#111827" />
+
+    <title>IA Mobile - Classificador de Flores</title>
+
+    <link rel="icon" href="data:,">
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        html {
+            width: 100%;
+            overflow-x: hidden;
+        }
+
+        body {
+            margin: 0;
+            width: 100%;
+            min-height: 100vh;
+            padding: 10px;
+            overflow-x: hidden;
+            background: linear-gradient(135deg, #dbeafe, #fce7f3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .phone {
+            width: min(380px, 100%);
+            max-width: 100%;
+            min-height: 760px;
+            background: #111827;
+            border-radius: 36px;
+            padding: 16px;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.35);
+        }
+
+        .screen {
+            background: #f9fafb;
+            min-height: 728px;
+            border-radius: 26px;
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .top-bar {
+            text-align: center;
+            font-size: 13px;
+            color: #6b7280;
+        }
+
+        h1 {
+            font-size: 23px;
+            margin: 0;
+            color: #111827;
+            text-align: center;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #4b5563;
+            font-size: 14px;
+            margin: 0;
+        }
+
+        .card {
+            background: white;
+            border-radius: 18px;
+            padding: 14px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+        }
+
+        input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px dashed #9ca3af;
+            border-radius: 12px;
+            background: #f3f4f6;
+        }
+
+        #preview,
+        #videoCamera {
+            width: 100%;
+            height: 230px;
+            object-fit: cover;
+            border-radius: 16px;
+            background: #e5e7eb;
+            display: none;
+        }
+
+        .botoes-camera {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+        }
+
+        button {
+            width: 100%;
+            border: none;
+            padding: 13px;
+            border-radius: 14px;
+            background: #2563eb;
+            color: white;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #1d4ed8;
+        }
+
+        button:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+
+        .btn-secundario {
+            background: #4b5563;
+        }
+
+        .btn-secundario:hover {
+            background: #374151;
+        }
+
+        .btn-alerta {
+            background: #dc2626;
+        }
+
+        .btn-alerta:hover {
+            background: #b91c1c;
+        }
+
+        .resultado {
+            font-size: 16px;
+            color: #111827;
+            line-height: 1.5;
+        }
+
+        .classe {
+            font-size: 22px;
+            font-weight: bold;
+            color: #16a34a;
+        }
+
+        .erro {
+            color: #dc2626;
+            font-weight: bold;
+        }
+
+        .ok {
+            color: #16a34a;
+            font-weight: bold;
+        }
+
+        .info {
+            color: #2563eb;
+            font-weight: bold;
+        }
+
+        .aviso {
+            color: #92400e;
+            font-weight: bold;
+        }
+
+        .footer {
+            text-align: center;
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: auto;
+        }
+
+        canvas {
+            display: none;
+        }
+
+        @media (max-width: 420px) {
+            body {
+                padding: 6px;
+                align-items: flex-start;
+            }
+
+            .phone {
+                border-radius: 24px;
+                padding: 10px;
+                min-height: auto;
+            }
+
+            .screen {
+                border-radius: 20px;
+                min-height: calc(100vh - 32px);
+                padding: 14px;
+            }
+
+            h1 {
+                font-size: 20px;
+            }
+
+            #preview,
+            #videoCamera {
+                height: 210px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="phone">
+        <div class="screen">
+            <div class="top-bar">IA Mobile</div>
+
+            <h1>Classificador de Flores</h1>
+
+            <p class="subtitle">
+                Envie uma imagem ou use a câmera do celular.
+            </p>
+
+            <div class="card">
+                <input
+                    type="file"
+                    id="imageInput"
+                    accept="image/*"
+                    capture="environment"
+                />
+            </div>
+
+            <div class="card botoes-camera">
+                <button id="btnAbrirCamera" class="btn-secundario">
+                    Abrir câmera
+                </button>
+
+                <button id="btnCapturarFoto" disabled>
+                    Capturar foto
+                </button>
+
+                <button id="btnFecharCamera" class="btn-alerta" disabled>
+                    Fechar câmera
+                </button>
+            </div>
+
+            <video id="videoCamera" autoplay playsinline muted></video>
+
+            <canvas id="canvasCamera"></canvas>
+
+            <img id="preview" alt="Pré-visualização da imagem" />
+
+            <div class="card">
+                <button id="btnClassificar" disabled>
+                    Classificar imagem
+                </button>
+            </div>
+
+            <div class="card resultado" id="resultado">
+                Carregando modelo...
+            </div>
+
+            <div class="footer">
+                TensorFlow.js + GraphModel + Câmera Mobile
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let modelo = null;
+        let classes = [];
+
+        let modeloCarregado = false;
+        let imagemCarregada = false;
+        let cameraAtiva = false;
+        let streamCamera = null;
+
+        const imageInput = document.getElementById("imageInput");
+        const preview = document.getElementById("preview");
+        const videoCamera = document.getElementById("videoCamera");
+        const canvasCamera = document.getElementById("canvasCamera");
+
+        const btnClassificar = document.getElementById("btnClassificar");
+        const btnAbrirCamera = document.getElementById("btnAbrirCamera");
+        const btnCapturarFoto = document.getElementById("btnCapturarFoto");
+        const btnFecharCamera = document.getElementById("btnFecharCamera");
+
+        const resultado = document.getElementById("resultado");
+
+        function ambienteSeguroParaCamera() {
+            const protocoloSeguro = window.location.protocol === "https:";
+            const localhost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+
+            return protocoloSeguro || localhost;
+        }
+
+        function atualizarBotaoClassificar() {
+            btnClassificar.disabled = !(modeloCarregado && imagemCarregada);
+        }
+
+        function atualizarBotoesCamera() {
+            btnAbrirCamera.disabled = cameraAtiva;
+            btnCapturarFoto.disabled = !cameraAtiva;
+            btnFecharCamera.disabled = !cameraAtiva;
+        }
+
+        function mostrarAvisoHttpsSeNecessario() {
+            if (!ambienteSeguroParaCamera()) {
+                resultado.innerHTML = `
+                    <span class="aviso">Atenção:</span><br>
+                    Para usar a câmera no celular, publique este projeto em HTTPS,
+                    por exemplo no GitHub Pages.
+                `;
+            }
+        }
+
+        async function carregarModelo() {
+            try {
+                resultado.innerHTML = "Carregando modelo...";
+
+                modelo = await tf.loadGraphModel("./modelo/model.json");
+
+                const respostaClasses = await fetch("./classes.json");
+
+                if (!respostaClasses.ok) {
+                    throw new Error("Não foi possível carregar classes.json");
+                }
+
+                classes = await respostaClasses.json();
+
+                modeloCarregado = true;
+
+                resultado.innerHTML = `
+                    <span class="ok">Modelo carregado com sucesso.</span><br>
+                    Escolha uma imagem ou abra a câmera.
+                `;
+
+                if (!ambienteSeguroParaCamera()) {
+                    resultado.innerHTML += `
+                        <br><br>
+                        <span class="aviso">
+                            Para usar a câmera no celular, acesse por HTTPS.
+                        </span>
+                    `;
+                }
+
+                console.log("Modelo carregado:", modelo);
+                console.log("Classes carregadas:", classes);
+
+                atualizarBotaoClassificar();
+
+            } catch (erro) {
+                console.error("Erro detalhado ao carregar modelo:", erro);
+
+                resultado.innerHTML = `
+                    <span class="erro">Erro ao carregar o modelo.</span><br><br>
+                    Verifique se os arquivos estão nesta estrutura:<br>
+                    index.html<br>
+                    classes.json<br>
+                    modelo/model.json<br><br>
+                    Veja também o Console do navegador com F12.
+                `;
+
+                modeloCarregado = false;
+                atualizarBotaoClassificar();
+            }
+        }
+
+        imageInput.addEventListener("change", function(evento) {
+            const arquivo = evento.target.files[0];
+
+            if (!arquivo) {
+                imagemCarregada = false;
+                atualizarBotaoClassificar();
+                return;
+            }
+
+            imagemCarregada = false;
+            atualizarBotaoClassificar();
+
+            const leitor = new FileReader();
+
+            leitor.onload = function(e) {
+                preview.onload = function() {
+                    imagemCarregada = true;
+                    preview.style.display = "block";
+                    videoCamera.style.display = "none";
+
+                    if (modeloCarregado) {
+                        resultado.innerHTML = "Imagem carregada. Clique em classificar.";
+                    } else {
+                        resultado.innerHTML = "Imagem carregada, mas o modelo ainda não está disponível.";
+                    }
+
+                    atualizarBotaoClassificar();
+                };
+
+                preview.src = e.target.result;
+            };
+
+            leitor.readAsDataURL(arquivo);
+        });
+
+        async function abrirCamera() {
+            try {
+                if (!ambienteSeguroParaCamera()) {
+                    resultado.innerHTML = `
+                        <span class="erro">Ambiente não seguro para câmera.</span><br><br>
+                        No celular, publique no GitHub Pages e acesse usando HTTPS.
+                    `;
+                    return;
+                }
+
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error("Este navegador não oferece suporte direto à câmera.");
+                }
+
+                resultado.innerHTML = "Solicitando acesso à câmera...";
+
+                streamCamera = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: {
+                            ideal: "environment"
+                        }
+                    },
+                    audio: false
+                });
+
+                videoCamera.srcObject = streamCamera;
+                videoCamera.style.display = "block";
+                preview.style.display = "none";
+
+                await videoCamera.play();
+
+                cameraAtiva = true;
+                imagemCarregada = false;
+
+                resultado.innerHTML = `
+                    <span class="info">Câmera aberta.</span><br>
+                    Posicione a flor e clique em capturar foto.
+                `;
+
+                atualizarBotoesCamera();
+                atualizarBotaoClassificar();
+
+            } catch (erro) {
+                console.error("Erro ao abrir câmera:", erro);
+
+                resultado.innerHTML = `
+                    <span class="erro">Não foi possível abrir a câmera.</span><br><br>
+                    Verifique se você permitiu o acesso à câmera e se está usando HTTPS.
+                `;
+
+                cameraAtiva = false;
+                atualizarBotoesCamera();
+            }
+        }
+
+        function capturarFoto() {
+            if (!cameraAtiva || !videoCamera.srcObject) {
+                resultado.innerHTML = '<span class="erro">A câmera não está ativa.</span>';
+                return;
+            }
+
+            const largura = videoCamera.videoWidth;
+            const altura = videoCamera.videoHeight;
+
+            if (largura === 0 || altura === 0) {
+                resultado.innerHTML = '<span class="erro">A câmera ainda não está pronta. Aguarde alguns segundos.</span>';
+                return;
+            }
+
+            canvasCamera.width = largura;
+            canvasCamera.height = altura;
+
+            const contexto = canvasCamera.getContext("2d");
+            contexto.drawImage(videoCamera, 0, 0, largura, altura);
+
+            const imagemCapturada = canvasCamera.toDataURL("image/jpeg", 0.95);
+
+            preview.onload = function() {
+                imagemCarregada = true;
+                preview.style.display = "block";
+                videoCamera.style.display = "none";
+
+                resultado.innerHTML = "Foto capturada. Clique em classificar.";
+
+                atualizarBotaoClassificar();
+            };
+
+            preview.src = imagemCapturada;
+        }
+
+        function fecharCamera() {
+            if (streamCamera) {
+                const trilhas = streamCamera.getTracks();
+
+                trilhas.forEach(function(trilha) {
+                    trilha.stop();
+                });
+            }
+
+            streamCamera = null;
+            cameraAtiva = false;
+
+            videoCamera.srcObject = null;
+            videoCamera.style.display = "none";
+
+            resultado.innerHTML = "Câmera fechada.";
+
+            atualizarBotoesCamera();
+        }
+
+        function prepararImagem(img) {
+            return tf.tidy(() => {
+                const tensor = tf.browser.fromPixels(img)
+                    .resizeBilinear([224, 224])
+                    .toFloat()
+                    .div(127.5)
+                    .sub(1)
+                    .expandDims(0);
+
+                return tensor;
+            });
+        }
+
+        async function classificarImagem() {
+            if (!modeloCarregado || !modelo) {
+                resultado.innerHTML = '<span class="erro">O modelo ainda não foi carregado.</span>';
+                return;
+            }
+
+            if (!imagemCarregada || !preview.src) {
+                resultado.innerHTML = '<span class="erro">A imagem ainda não foi carregada.</span>';
+                return;
+            }
+
+            resultado.innerHTML = "Classificando...";
+
+            let entrada = prepararImagem(preview);
+            let predicao = null;
+
+            try {
+                predicao = modelo.predict(entrada);
+
+                if (Array.isArray(predicao)) {
+                    predicao = predicao[0];
+                }
+
+                const dados = await predicao.data();
+
+                let maiorIndice = 0;
+                let maiorValor = dados[0];
+
+                for (let i = 1; i < dados.length; i++) {
+                    if (dados[i] > maiorValor) {
+                        maiorValor = dados[i];
+                        maiorIndice = i;
+                    }
+                }
+
+                const classePrevista = classes[maiorIndice];
+                const confianca = (maiorValor * 100).toFixed(2);
+
+                resultado.innerHTML = `
+                    <div>Classe prevista:</div>
+                    <div class="classe">${classePrevista}</div>
+                    <div>Confiança: ${confianca}%</div>
+                `;
+
+            } catch (erro) {
+                console.error("Erro ao classificar:", erro);
+
+                resultado.innerHTML = `
+                    <span class="erro">Erro ao classificar a imagem.</span><br><br>
+                    Veja o Console do navegador com F12.
+                `;
+            } finally {
+                entrada.dispose();
+
+                if (predicao && !Array.isArray(predicao)) {
+                    predicao.dispose();
+                }
+            }
+        }
+
+        btnAbrirCamera.addEventListener("click", abrirCamera);
+        btnCapturarFoto.addEventListener("click", capturarFoto);
+        btnFecharCamera.addEventListener("click", fecharCamera);
+        btnClassificar.addEventListener("click", classificarImagem);
+
+        atualizarBotoesCamera();
+        carregarModelo();
+    </script>
+</body>
+</html>
